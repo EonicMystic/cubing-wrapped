@@ -5,7 +5,7 @@ Usage: python3 build_wrapped.py <WCA_export_tsv.zip | folder_with_tsvs> <output_
 
 Writes into <output_dir>:
   meta.json     years, event list, countries, per-year distributions (for "more than X% of cubers") and top lists
-  p/<n>.txt     per-person data in 256 shards: id <TAB> name <TAB> country <TAB> json (one entry per year)
+  y/<year>/<n>.gz  per-year gzipped person shards (id, name, country, json for that year); i/<n>.txt + i/s_<key>.txt  all-time people index (with a bitmask of the years each person competed in)
   p/s_<key>.txt name search buckets (only people who competed in one of the covered years)
 """
 import bisect, datetime, json, os, re, shutil, sys, tempfile, unicodedata, zipfile
@@ -32,7 +32,7 @@ NAMES = ['3x3', '2x2', '4x4', '5x5', '6x6', '7x7', '3x3 Blindfolded', 'Fewest Mo
 EIDX = {e: i for i, e in enumerate(EV)}
 NE = len(EV)
 HAS_AVG = [e != '333mbf' for e in EV]
-YEARS_BACK = 3                                    # this year and the two before it
+FIRST_YEAR = int(os.environ.get('WRAPPED_FROM', '1982'))   # every year the WCA has results for (set WRAPPED_FROM to test with fewer)
 
 
 def rows(name):
@@ -52,8 +52,7 @@ except Exception:
     stamp = ''
 today = datetime.date.fromisoformat(stamp[:10]) if stamp[:10] else datetime.date.today()
 CUR = today.year
-YEARS = [CUR - i for i in range(YEARS_BACK)][::-1]       # oldest first
-print('years:', YEARS, 'as of', today)
+print('as of', today)
 
 # ---------- competitions ----------
 comp_info = {}
@@ -104,12 +103,14 @@ for idx, p in rows('persons'):
 # the order we replay history in: by competition date (stable, so rounds of a competition stay together)
 order = sorted(range(NR_), key=rc.__getitem__)
 
-# who competed in which covered year
-active = {y: set() for y in YEARS}
+# who competed in which year (years without any results, like 1983-2002, are left out)
+active = defaultdict(set)
 for i in range(NR_):
     y = COMP_Y[rc[i]]
-    if y in active:
+    if FIRST_YEAR <= y <= CUR:
         active[y].add(rpid[i])
+YEARS = sorted(active)
+print('years:', YEARS[0], '-', YEARS[-1], f'({len(YEARS)} with results)')
 print('active people per year:', {y: len(s) for y, s in active.items()})
 
 # ---------- boundaries: ranks at the end of each year (needed for "start of year" and "end of year") ----------
@@ -156,7 +157,7 @@ def snapshot(B):
             v = cumA.get(pid * NE + e) if HAS_AVG[e] else None
             rk.append((bisect.bisect_left(arrA[e], v) + 1) if v else 0)
         t = totals.get(pid)
-        out[pid] = (rk, t or 0, (bisect.bisect_left(sorted_t, t) + 1) if t else 0)
+        out[pid] = (array('i', rk), t or 0, (bisect.bisect_left(sorted_t, t) + 1) if t else 0)
     snaps[B] = out
     print('snapshot', B, 'people ranked', len(sorted_t))
 
@@ -244,7 +245,7 @@ def shard_of(w):
     h = 0
     for ch in w:
         h = (h * 31 + ord(ch)) % 1000003
-    return h % 256
+    return h
 
 
 def fold(t):
@@ -288,7 +289,7 @@ for (pid, y), a in acc.items():
         'mo': months[0] if months else None,
     }
     wid = PIDS[pid]
-    people_y[wid][str(y)] = entry
+    people_y[wid][y] = entry
     dist[y]['comps'][len(a['comps'])] += 1
     dist[y]['rounds'][min(a['rounds'], 300)] += 1
     dist[y]['prs'][min(total_prs, 200)] += 1
@@ -297,15 +298,25 @@ for (pid, y), a in acc.items():
     tops[y]['prs'].append((total_prs, wid))
     tops[y]['pod'].append((len(a['pod']), wid))
 
-pdir = os.path.join(out_dir, 'p')
-shutil.rmtree(pdir, ignore_errors=True)
-os.makedirs(pdir)
-shards, buckets = defaultdict(list), defaultdict(list)
+
+import gzip, math
+shutil.rmtree(os.path.join(out_dir, 'y'), ignore_errors=True)
+shutil.rmtree(os.path.join(out_dir, 'p'), ignore_errors=True)
+shutil.rmtree(os.path.join(out_dir, 'i'), ignore_errors=True)
+Y0 = YEARS[0]
+NSH = {y: max(1, math.ceil(len(active[y]) / 800)) for y in YEARS}     # shards per year, about 800 people each
+yshards = defaultdict(lambda: defaultdict(list))
+ishards, buckets = defaultdict(list), defaultdict(list)
 for pid, ys in people_y.items():
     nm = pname.get(pid, pid).replace('|', '/').replace('\t', ' ')
     ct = pctry.get(pid, '')
-    shards[shard_of(pid)].append(pid + '\t' + nm + '\t' + ct + '\t' + json.dumps(ys, ensure_ascii=False, separators=(',', ':')))
-    line = pid + '\t' + nm + '\t' + ct
+    h = shard_of(pid)
+    mask = 0
+    for y, entry in ys.items():
+        mask |= 1 << (y - Y0)
+        yshards[y][h % NSH[y]].append(pid + '\t' + nm + '\t' + ct + '\t' + json.dumps(entry, ensure_ascii=False, separators=(',', ':')))
+    line = pid + '\t' + nm + '\t' + ct + '\t' + format(mask, 'x')
+    ishards[h % 256].append(line)
     seen = set()
     for tok in re.split(r'[^\w]+', fold(nm)):
         if len(tok) < 2:
@@ -313,12 +324,22 @@ for pid, ys in people_y.items():
         k = bucket(tok)
         if k not in seen:
             seen.add(k); buckets[k].append(line)
-for k, lines in shards.items():
-    with open(os.path.join(pdir, f'{k}.txt'), 'w', encoding='utf-8') as f:
+nfiles = 0
+for y, sh in yshards.items():
+    d = os.path.join(out_dir, 'y', str(y))
+    os.makedirs(d)
+    for k, lines in sh.items():
+        with gzip.GzipFile(os.path.join(d, f'{k}.gz'), 'wb', 9, mtime=0) as f:
+            f.write('\n'.join(lines).encode('utf-8'))
+        nfiles += 1
+os.makedirs(os.path.join(out_dir, 'i'))
+for k, lines in ishards.items():
+    with open(os.path.join(out_dir, 'i', f'{k}.txt'), 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines))
 for k, lines in buckets.items():
-    with open(os.path.join(pdir, f's_{k}.txt'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(out_dir, 'i', f's_{k}.txt'), 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines))
+shards = {0: [0] * nfiles}
 
 
 def top_list(lst, n=25):
@@ -334,7 +355,7 @@ def dense(d, size):
 
 
 meta = {
-    'updated': stamp, 'asof': today.isoformat(), 'years': YEARS, 'cur': CUR,
+    'updated': stamp, 'asof': today.isoformat(), 'years': YEARS, 'cur': CUR, 'nsh': {str(y): NSH[y] for y in YEARS},
     'events': EV, 'names': NAMES, 'avg': HAS_AVG,
     'dist': {str(y): {'n': len(active[y]), 'comps': dense(dist[y]['comps'], 60), 'rounds': dense(dist[y]['rounds'], 300),
                       'prs': dense(dist[y]['prs'], 200), 'countries': dense(dist[y]['countries'], 30)} for y in YEARS},
@@ -342,4 +363,4 @@ meta = {
 }
 with open(os.path.join(out_dir, 'meta.json'), 'w', encoding='utf-8') as f:
     json.dump(meta, f, ensure_ascii=False, separators=(',', ':'))
-print('done:', len(people_y), 'people;', sum(len(v) for v in shards.values()), 'shard rows; export', stamp)
+print('done:', len(people_y), 'people;', nfiles, 'year files; export', stamp)
