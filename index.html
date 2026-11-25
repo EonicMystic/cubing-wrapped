@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cubing Wrapped</title>
+<meta name="description" content="Your year in speedcubing: competitions, personal records, podiums and rank changes for every WCA competitor. Unofficial fan-made tool.">
+<meta property="og:title" content="Cubing Wrapped">
+<meta property="og:description" content="Your year in speedcubing, built from the official WCA results export. Look up any WCA ID.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://eonicmystic.github.io/cubing-wrapped/wrapped-preview.png">
+<meta property="og:url" content="https://eonicmystic.github.io/cubing-wrapped/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://eonicmystic.github.io/cubing-wrapped/wrapped-preview.png">
+<style>
+  :root {
+    --bg: #f5f7fa; --card: #ffffff; --text: #12161c; --muted: #5b6573; --line: #e2e6ec;
+    --accent: #1f6feb; --accent-soft: #e4eeff; --shadow: 0 1px 2px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b0f14; --card: #131921; --text: #e8ecf1; --muted: #98a3b1; --line: #242d38;
+      --accent: #58a6ff; --accent-soft: #14283f; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 18px 16px 40px; }
+  h1 { font-size: 1.6rem; margin: 4px 0 2px; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 14px; font-size: .95rem; }
+  a { color: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { border: 0; background: var(--bg); color: var(--text); font: inherit; font-size: .92rem; padding: 8px 14px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  input[type=search] { width: 100%; font: inherit; font-size: 1rem; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .hit { display: flex; justify-content: space-between; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; margin-top: 8px; cursor: pointer; background: var(--bg); }
+  .hit:hover { border-color: var(--accent); }
+  .flag { color: var(--muted); font-size: .82rem; }
+  .note { color: var(--muted); font-size: .84rem; margin: 8px 0 0; }
+  .btn { display: inline-block; border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; font: inherit; font-weight: 600; font-size: .92rem; background: var(--bg); color: var(--text); cursor: pointer; text-decoration: none; }
+  .ysel { font: inherit; font-size: .95rem; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+  .btn.primary { background: var(--accent); color: #fff; border-color: transparent; }
+  .loading { padding: 28px 8px; text-align: center; color: var(--muted); }
+  .err { padding: 16px; color: #d1242f; text-align: center; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 9px 6px; border-bottom: 1px solid var(--line); font-size: .93rem; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+  tr.go { cursor: pointer; } tr.go:hover td { background: var(--accent-soft); }
+  .rk { color: var(--muted); width: 2.4em; }
+
+  /* story */
+  .stage { position: relative; width: 100%; height: min(78dvh, 720px); min-height: 440px; border-radius: 24px; overflow: hidden; color: #fff; user-select: none; -webkit-user-select: none; touch-action: pan-y; }
+  .bg { position: absolute; inset: 0; transition: background .35s; }
+  .bars { position: absolute; top: 12px; left: 14px; right: 14px; display: flex; gap: 5px; z-index: 3; }
+  .bars i { flex: 1; height: 4px; border-radius: 3px; background: rgba(255,255,255,.28); overflow: hidden; }
+  .bars i.on { background: rgba(255,255,255,.95); }
+  .slide { position: absolute; inset: 0; padding: 46px 26px 26px; display: flex; flex-direction: column; justify-content: center; gap: 10px; z-index: 2; animation: rise .4s ease both; overflow-y: auto; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .slide { animation: none; } .bg { transition: none; } }
+  .kick { font-size: .9rem; letter-spacing: .08em; text-transform: uppercase; opacity: .85; font-weight: 700; }
+  .big { font-size: clamp(3.2rem, 17vw, 5.6rem); font-weight: 800; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; word-break: break-word; }
+  .big.small { font-size: clamp(2rem, 10vw, 3.2rem); }
+  .biglab { font-size: 1.35rem; font-weight: 700; margin-top: -4px; }
+  .line { font-size: 1.05rem; opacity: .95; }
+  .line b { font-weight: 800; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .chips span { background: rgba(255,255,255,.18); border-radius: 999px; padding: 4px 12px; font-size: .88rem; font-weight: 600; }
+  .zone { position: absolute; top: 0; bottom: 0; z-index: 4; width: 34%; background: transparent; border: 0; cursor: pointer; }
+  .zone.l { left: 0; } .zone.r { right: 0; width: 66%; }
+  .slide .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; position: relative; z-index: 6; }
+  .slide .actions .btn { background: rgba(255,255,255,.2); color: #fff; border-color: rgba(255,255,255,.35); backdrop-filter: blur(4px); }
+  .slide .actions .btn.primary { background: #fff; color: #111; }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+  .tiles div { background: rgba(255,255,255,.16); border-radius: 14px; padding: 10px 12px; }
+  .tiles b { display: block; font-size: 1.7rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .tiles span { font-size: .8rem; opacity: .9; }
+  .nav { display: flex; justify-content: space-between; margin-top: 10px; }
+  .foot { color: var(--muted); font-size: .8rem; margin-top: 18px; }
+</style>
+</head>
+<body>
+<main id="app"><div class="loading">Loading…</div></main>
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (attrs || {})) {
+    if (attrs[k] == null) continue;
+    if (k === "class") e.className = attrs[k];
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), attrs[k]);
+    else e.setAttribute(k, attrs[k]);
+  }
+  for (const c of kids.flat()) if (c != null) e.append(c);
+  return e;
+}
+function store(k, v) { try { if (v === undefined) return localStorage.getItem("cw_" + k); localStorage.setItem("cw_" + k, v); } catch (e) { return null; } }
+const fold = t => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const bucketOf = tok => { const k = tok.slice(0, 3); return /^[a-z0-9]{2,3}$/.test(k) ? k : "_" + (tok.codePointAt(0) % 64); };
+function shardOf(w) { let h = 0; for (let k = 0; k < w.length; k++) h = (h * 31 + w.charCodeAt(k)) % 1000003; return h; }
+const n0 = x => Number(x).toLocaleString("en-US");
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MON3 = MONTHS.map(m => m.slice(0, 3));
+async function getRetry(url, json) {
+  let last;
+  for (let i = 0; i < 5; i++) {
+    const u = i >= 2 ? url + (url.includes("?") ? "&" : "?") + "cb=" + Date.now() : url;
+    try { const r = await fetch(u, { cache: i === 0 ? "no-cache" : "reload" }); if (r.ok) return json ? r.json() : r.text(); last = new Error(url + " " + r.status); if (r.status === 404 && i >= 1 && !json) break; }
+    catch (e) { last = e; }
+    await new Promise(r => setTimeout(r, 500 * (i + 1)));
+  }
+  throw last;
+}
+
+let META = null;
+const app = $("#app");
+const idxCache = new Map(), bucketCache = new Map(), yearCache = new Map(), personCache = new Map();
+
+function fmtTime(cs) {
+  if (!cs) return "—";
+  const t = cs / 100;
+  if (t >= 60) { const m = Math.floor(t / 60), s = (t - m * 60).toFixed(2).padStart(5, "0"); return m >= 60 ? Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0") + ":" + s : m + ":" + s; }
+  return t.toFixed(2);
+}
+function fmtVal(ev, isAvg, v) {
+  if (!v) return "—";
+  const id = META.events[ev];
+  if (id === "333fm") return isAvg ? (v / 100).toFixed(2) : String(v);
+  if (id === "333mbf") {
+    const dd = Math.floor(v / 1e7), t = Math.floor(v / 100) % 100000, miss = v % 100;
+    const pts = 99 - dd, solved = pts + miss;
+    return solved + "/" + (solved + miss) + " " + Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0");
+  }
+  return fmtTime(v);
+}
+
+/* ---------- data ---------- */
+// All-time index: one line per person: id, name, country, hex bitmask of the years they competed in (bit 0 = first year with results).
+function rowOf(l) {
+  const f = l.split("\t"), m = BigInt("0x" + (f[3] || "0")), years = [];
+  for (let i = 0; i < META.years.length; i++) if ((m >> BigInt(META.years[i] - META.years[0])) & 1n) years.push(META.years[i]);
+  return { id: f[0], name: f[1], country: f[2], years };
+}
+async function loadIndex(id) {
+  if (personCache.has(id)) return personCache.get(id);
+  const n = shardOf(id) % 256;
+  if (!idxCache.has(n)) idxCache.set(n, getRetry("i/" + n + ".txt").then(t => t.split("\n")));
+  const lines = await idxCache.get(n);
+  let p = null;
+  for (const ln of lines) if (ln.startsWith(id + "\t")) { p = rowOf(ln); break; }
+  personCache.set(id, p);
+  return p;
+}
+async function gunzipText(url) {
+  let last;
+  for (let i = 0; i < 4; i++) {
+    try {
+      const r = await fetch(i ? url + "?cb=" + Date.now() : url, { cache: i ? "reload" : "no-cache" });
+      if (!r.ok) throw new Error(url + " " + r.status);
+      if (typeof DecompressionStream === "undefined") throw new Error("This browser is too old to open the data. Please update it.");
+      const stream = r.body.pipeThrough(new DecompressionStream("gzip"));
+      return await new Response(stream).text();
+    } catch (e) { last = e; await new Promise(r => setTimeout(r, 500 * (i + 1))); }
+  }
+  throw last;
+}
+// One year of one person. Year files stay gzipped on the server and are only fetched when that year is opened.
+async function loadYear(id, y) {
+  const n = shardOf(id) % META.nsh[String(y)], key = y + "/" + n;
+  if (!yearCache.has(key)) yearCache.set(key, gunzipText("y/" + y + "/" + n + ".gz").then(t => t.split("\n")));
+  const lines = await yearCache.get(key);
+  for (const ln of lines) {
+    if (!ln.startsWith(id + "\t")) continue;
+    return JSON.parse(ln.slice(ln.indexOf("\t", ln.indexOf("\t", id.length + 1) + 1) + 1));
+  }
+  return null;
+}
+async function searchPeople(q) {
+  const raw = q.trim();
+  if (/^\d{4}[a-z]{4}\d{2}$/i.test(raw)) { const p = await loadIndex(raw.toUpperCase()); return p ? [p] : []; }
+  const toks = fold(raw).split(/[^\p{L}\p{N}_]+/u).filter(t => t.length >= 2);
+  if (!toks.length) return null;
+  const long = toks.reduce((a, b) => b.length > a.length ? b : a), key = bucketOf(long);
+  let rows = bucketCache.get(key);
+  if (!rows) {
+    let txt = "";
+    try { txt = await getRetry("i/s_" + key + ".txt"); } catch (e) { txt = ""; }
+    rows = txt.split("\n").filter(Boolean).map(rowOf);
+    bucketCache.set(key, rows);
+  }
+  const hit = [];
+  for (const r of rows) {
+    if (r.f === undefined) r.f = fold(r.name);
+    if (toks.every(t => r.f.includes(t))) hit.push(r);
+    if (hit.length >= 60) break;
+  }
+  hit.sort((a, b) => (b.f.startsWith(toks[0]) ? 1 : 0) - (a.f.startsWith(toks[0]) ? 1 : 0));
+  return hit.slice(0, 8);
+}
+function searchBox(onPick) {
+  const input = el("input", { type: "search", placeholder: "Search by name or WCA ID", autocomplete: "off", enterkeyhint: "search", "aria-label": "Search by name or WCA ID" });
+  const results = el("div");
+  let timer = 0, seq = 0;
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const q = input.value, my = ++seq;
+      if (q.trim().length < 2) { results.replaceChildren(); return; }
+      let hits = null;
+      try { hits = await searchPeople(q); } catch (e) { hits = []; }
+      if (my !== seq || hits === null) return;
+      results.replaceChildren(...(hits.length ? hits.map(h => el("div", { class: "hit", onclick: () => onPick(h.id) }, el("span", {}, h.name), el("span", { class: "flag" }, h.id + " · " + h.country + " · " + h.years.length + " " + plural(h.years.length, "year"))))
+        : [el("p", { class: "note" }, "No one found. Try a different spelling or a WCA ID.")]));
+    }, 180);
+  });
+  return el("div", {}, input, results);
+}
+
+/* ---------- helpers for the story ---------- */
+const plural = (n, a, b) => n === 1 ? a : (b || a + "s");
+const yearLabel = y => y === META.cur ? y + " so far" : String(y);
+function pctBelow(arr, n, k, total) { let s = 0; for (let i = 0; i < k && i < arr.length; i++) s += arr[i]; return total ? 100 * s / total : 0; }
+function compare(kind, k, y) {
+  const d = META.dist[String(y)], p = pctBelow(d[kind], d[kind].length, k, d.n);
+  if (k <= 0) return null;
+  if (p >= 50) return "More than <b>" + Math.floor(p) + "%</b> of the " + n0(d.n) + " cubers who competed in " + y;
+  return "Among the " + n0(d.n) + " cubers who competed in " + y;
+}
+function bestImprovement(e) {
+  let best = null;
+  for (const r of e.pr) {
+    const ev = r[0];
+    if (META.events[ev] === "333mbf") continue;
+    for (const [kind, a0, a1] of [["Single", r[3], r[4]], ["Average", r[5], r[6]]]) {
+      if (!a0 || !a1 || a1 >= a0) continue;
+      if (kind === "Average" && !META.avg[ev]) continue;
+      const pct = 100 * (a0 - a1) / a0;
+      if (!best || pct > best.pct) best = { ev, kind, a0, a1, pct };
+    }
+  }
+  return best;
+}
+function biggestJump(e) {
+  let best = null;
+  for (const [ev, s0, s1, a0, a1] of e.er) {
+    for (const [kind, r0, r1] of [["single", s0, s1], ["average", a0, a1]]) {
+      if (!r0 || !r1 || r1 >= r0) continue;
+      const pct = (r0 - r1) / r0;
+      if (r0 - r1 < 20) continue;
+      if (!best || pct > best.pct) best = { ev, kind, r0, r1, pct };
+    }
+  }
+  return best;
+}
+
+function buildSlides(p, y) {
+  const e = p.years[String(y)];
+  const L = yearLabel(y), S = [];
+  // 1 intro
+  S.push({ hue: ["#5b3df5", "#c026d3"], kicker: "Cubing Wrapped · " + L, big: p.name, small: true, lines: [p.id + " · " + p.country, "Tap to see your year"] });
+  // 2 competitions
+  const c = e.cs || [];
+  const lines = [];
+  const cmp = compare("comps", e.k, y); if (cmp) lines.push(cmp);
+  if (e.mo) lines.push("Busiest month: <b>" + MONTHS[e.mo[0] - 1] + "</b> (" + e.mo[1] + " " + plural(e.mo[1], "competition") + ")");
+  if (e.ct > 1) lines.push("You competed in <b>" + e.ct + " countries</b>: " + e.cl.join(", "));
+  else if (e.ct === 1) lines.push("All in <b>" + e.cl[0] + "</b>");
+  if (c.length) lines.push("From <b>" + c[0][0] + "</b> (" + MON3[+c[0][1].slice(0, 2) - 1] + " " + +c[0][1].slice(3) + ") to <b>" + c[c.length - 1][0] + "</b>" + (e.k > c.length ? "…" : ""));
+  S.push({ hue: ["#0ea5e9", "#2563eb"], kicker: "Competitions", big: n0(e.k), label: plural(e.k, "competition"), lines });
+  // 3 rounds / events
+  const evn = e.ev.map(([ev, n]) => ({ name: META.names[ev], n }));
+  const l3 = [];
+  if (evn.length) l3.push("Most-competed event: <b>" + evn[0].name + "</b> (" + evn[0].n + " " + plural(evn[0].n, "round") + ")");
+  l3.push("You competed in <b>" + evn.length + " " + plural(evn.length, "event") + "</b>");
+  const cr = compare("rounds", e.r, y); if (cr) l3.push(cr);
+  const s3 = { hue: ["#059669", "#16a34a"], kicker: "Rounds", big: n0(e.r), label: plural(e.r, "round") + " solved through", lines: l3 };
+  if (e.db.length) s3.chips = ["First result in: ", ...e.db.map(ev => META.names[ev])];
+  S.push(s3);
+  // 4 PRs
+  if (e.pt > 0) {
+    const sPR = e.pr.reduce((a, r) => a + r[1], 0), aPR = e.pr.reduce((a, r) => a + r[2], 0);
+    const l4 = ["<b>" + sPR + "</b> single " + plural(sPR, "PR") + " and <b>" + aPR + "</b> average " + plural(aPR, "PR")];
+    const cp = compare("prs", e.pt, y); if (cp) l4.push(cp);
+    const bi = bestImprovement(e);
+    if (bi) l4.push("Biggest improvement: <b>" + META.names[bi.ev] + " " + bi.kind.toLowerCase() + "</b>, " + fmtVal(bi.ev, bi.kind === "Average", bi.a0) + " → <b>" + fmtVal(bi.ev, bi.kind === "Average", bi.a1) + "</b> (" + bi.pct.toFixed(bi.pct < 10 ? 1 : 0) + "% faster)");
+    S.push({ hue: ["#f59e0b", "#ea580c"], kicker: "Personal records", big: n0(e.pt), label: plural(e.pt, "new PR"), lines: l4 });
+  }
+  // 5 records
+  const rt = e.rc[0] + e.rc[1] + e.rc[2];
+  if (rt > 0) {
+    const l5 = [e.rc[0] ? "<b>" + e.rc[0] + "</b> world " + plural(e.rc[0], "record") : null, e.rc[1] ? "<b>" + e.rc[1] + "</b> continental " + plural(e.rc[1], "record") : null, e.rc[2] ? "<b>" + e.rc[2] + "</b> national " + plural(e.rc[2], "record") : null].filter(Boolean);
+    const sl = { hue: ["#e11d48", "#be123c"], kicker: "Records", big: n0(rt), label: plural(rt, "record") + " set", lines: l5 };
+    sl.chips = e.rec.slice(0, 4).map(r => r[0] + " " + (r[1] === "s" ? "single" : "average") + " " + META.names[r[2]] + " " + fmtVal(r[2], r[1] === "a", r[3]));
+    S.push(sl);
+  }
+  // 6 podiums
+  if (e.pd > 0) {
+    const l6 = [e.w ? "<b>" + e.w + "</b> " + plural(e.w, "win") : "No wins this time, but plenty of podiums"];
+    const sl = { hue: ["#7c3aed", "#4f46e5"], kicker: "Podiums", big: n0(e.pd), label: plural(e.pd, "podium finish", "podium finishes"), lines: l6 };
+    sl.chips = e.pl.slice(0, 4).map(r => ["", "1st", "2nd", "3rd"][r[1]] + " · " + META.names[r[0]] + " · " + r[2]);
+    S.push(sl);
+  }
+  // 7 rank movement
+  if (e.sr && e.sr[1] && e.sr[3] && e.sr[1] !== e.sr[3]) {
+    const up = e.sr[3] < e.sr[1];
+    const l7 = [up ? "Moved up <b>" + n0(e.sr[1] - e.sr[3]) + "</b> " + plural(e.sr[1] - e.sr[3], "place") + " in Sum of Ranks (all 17 events, single and average)" : "Slipped <b>" + n0(e.sr[3] - e.sr[1]) + "</b> " + plural(e.sr[3] - e.sr[1], "place") + " in Sum of Ranks, as other cubers improved too"];
+    const bj = biggestJump(e);
+    if (bj) l7.push("Biggest event jump: <b>" + META.names[bj.ev] + " " + bj.kind + "</b>, #" + n0(bj.r0) + " → <b>#" + n0(bj.r1) + "</b> in the world");
+    S.push({ hue: ["#0891b2", "#0d9488"], kicker: "World ranking", big: "#" + n0(e.sr[3]), small: String(n0(e.sr[3])).length > 5, label: "Sum of Ranks, " + (y === META.cur ? "now" : "end of " + y), lines: [up ? "Started the year at <b>#" + n0(e.sr[1]) + "</b>" : "Started the year at #" + n0(e.sr[1])].concat(l7) });
+  }
+  // summary
+  S.push({ hue: ["#111827", "#312e81"], kicker: p.name + " · " + L, summary: true, big: "Your year", small: true, tiles: summaryTiles(e), lines: [] });
+  return S;
+}
+function summaryTiles(e) {
+  const t = [[n0(e.k), plural(e.k, "competition")], [n0(e.r), plural(e.r, "round")], [n0(e.pt), plural(e.pt, "PR")]];
+  t.push(e.ct > 1 ? [String(e.ct), "countries"] : (e.pd ? [String(e.pd), plural(e.pd, "podium")] : [String(e.ev.length), plural(e.ev.length, "event")]));
+  if (e.rc[0] + e.rc[1] + e.rc[2]) t.push([String(e.rc[0] + e.rc[1] + e.rc[2]), plural(e.rc[0] + e.rc[1] + e.rc[2], "record")]);
+  else if (e.pd && e.ct > 1) t.push([String(e.pd), plural(e.pd, "podium")]);
+  if (e.ev.length) t.push([META.names[e.ev[0][0]], "most-competed event"]);
+  return t.slice(0, 6);
+}
+
+/* ---------- story view ---------- */
+async function renderStory(id, year) {
+  app.replaceChildren(el("div", { class: "loading" }, "Loading…"));
+  let p, entry = null;
+  try { p = await loadIndex(id); } catch (e) { app.replaceChildren(topBar(), el("div", { class: "err" }, "Couldn't load that profile. Reload to try again.")); return; }
+  if (!p || !p.years.length) { app.replaceChildren(topBar(), el("div", { class: "card" }, el("b", {}, "No Wrapped for " + id), el("p", { class: "note" }, "Wrapped needs at least one competition with results. Check the WCA ID or search by name.")), el("a", { class: "btn", href: "#" }, "Back")); return; }
+  // only years this person actually competed in; fall back to their most recent one
+  if (!year || !p.years.includes(year)) year = p.years[p.years.length - 1];
+  try { entry = await loadYear(id, year); } catch (e) { app.replaceChildren(topBar(), el("div", { class: "err" }, "Couldn't load " + year + ". Reload to try again.")); return; }
+  if (!entry) { app.replaceChildren(topBar(), el("div", { class: "card" }, el("b", {}, p.name), el("p", { class: "note" }, "No data found for " + year + ".")), el("a", { class: "btn", href: "#" }, "Back")); return; }
+  p = { ...p, years: { [String(year)]: entry } };
+  const avail = (await loadIndex(id)).years;
+  const slides = buildSlides(p, year);
+  let i = 0;
+  const yrs = el("div", { class: "row" }, el("select", { class: "ysel", "aria-label": "Year", onchange: e => { homeYear = +e.target.value; go("#" + id + "/" + e.target.value); } },
+    avail.slice().reverse().map(y => el("option", { value: y, selected: y === year ? "" : null }, yearLabel(y)))),
+    el("span", { class: "note", style: "margin:0" }, avail.length + " " + plural(avail.length, "year") + " with competitions"));
+  const stage = el("div", { class: "stage", "aria-live": "polite" });
+  const draw = () => {
+    const s = slides[i];
+    stage.replaceChildren();
+    const bg = el("div", { class: "bg", style: "background:linear-gradient(160deg," + s.hue[0] + "," + s.hue[1] + ")" });
+    const bars = el("div", { class: "bars" }, slides.map((_, k) => el("i", { class: k <= i ? "on" : "" })));
+    const body = el("div", { class: "slide" }, el("div", { class: "kick" }, s.kicker));
+    if (s.big) body.append(el("div", { class: "big" + (s.small ? " small" : "") }, s.big));
+    if (s.label) body.append(el("div", { class: "biglab" }, s.label));
+    if (s.tiles) body.append(el("div", { class: "tiles" }, s.tiles.map(([a, b]) => el("div", {}, el("b", {}, a), el("span", {}, b)))));
+    for (const l of s.lines || []) { const d = el("div", { class: "line" }); d.innerHTML = l; body.append(d); }
+    if (s.chips) body.append(el("div", { class: "chips" }, s.chips.map(c => el("span", {}, c))));
+    if (s.summary) {
+      body.append(el("div", { class: "actions" },
+        el("button", { class: "btn primary", onclick: e => { e.stopPropagation(); saveImage(e.target, p, year); } }, "Save image"),
+        el("button", { class: "btn", onclick: e => { e.stopPropagation(); shareLink(e.target, p, year); } }, "Share link"),
+        el("button", { class: "btn", onclick: e => { e.stopPropagation(); store("me", id); flash(e.target, "Saved as me"); } }, "This is me")));
+    }
+    stage.append(bg, bars, body);
+    if (!s.summary) stage.append(el("button", { class: "zone l", "aria-label": "Previous", onclick: () => { if (i > 0) { i--; draw(); } } }), el("button", { class: "zone r", "aria-label": "Next", onclick: () => { if (i < slides.length - 1) { i++; draw(); } } }));
+
+  };
+  draw();
+  let sx = null;
+  stage.addEventListener("touchstart", e => { sx = e.touches[0].clientX; }, { passive: true });
+  stage.addEventListener("touchend", e => { if (sx == null) return; const dx = e.changedTouches[0].clientX - sx; sx = null; if (Math.abs(dx) > 60) { if (dx < 0 && i < slides.length - 1) { i++; draw(); } else if (dx > 0 && i > 0) { i--; draw(); } } }, { passive: true });
+  const onKey = e => { if (!document.body.contains(stage)) { document.removeEventListener("keydown", onKey); return; } if (e.key === "ArrowRight" && i < slides.length - 1) { i++; draw(); } if (e.key === "ArrowLeft" && i > 0) { i--; draw(); } };
+  document.addEventListener("keydown", onKey);
+  const nav = el("div", { class: "nav" }, el("button", { class: "btn", onclick: () => { if (i > 0) { i--; draw(); } } }, "← Back"), el("a", { class: "btn", href: "#" }, "Search someone else"), el("button", { class: "btn", onclick: () => { if (i < slides.length - 1) { i++; draw(); } } }, "Next →"));
+  app.replaceChildren(topBar(), yrs, stage, nav, el("p", { class: "foot" }, "Unofficial fan-made tool using the official WCA results export. Data as of " + META.asof + ". PRs count results that beat your previous best at an earlier competition; ranks follow the Cubing Ranks Sum of Ranks method."));
+}
+function topBar() { return el("div", {}, el("h1", {}, el("a", { href: "#", style: "color:inherit;text-decoration:none" }, "Cubing Wrapped"))); }
+function flash(btn, msg) { const t = btn.textContent; btn.textContent = msg; setTimeout(() => btn.textContent = t, 1800); }
+async function shareLink(btn, p, y) {
+  const url = location.origin + location.pathname + "#" + p.id + "/" + y;
+  try { if (navigator.share) { await navigator.share({ title: "Cubing Wrapped", text: p.name + "'s " + yearLabel(y) + " in cubing", url }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+  try { await navigator.clipboard.writeText(url); flash(btn, "Link copied"); } catch (e) { flash(btn, "Copy the page address"); }
+}
+function rrect(g, x, y, w, h, r, fill) { g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); g.fillStyle = fill; g.fill(); }
+async function saveImage(btn, p, y) {
+  const e = p.years[String(y)], W = 1080, H = 1350, F = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, "#1e1b4b"); bg.addColorStop(0.55, "#4c1d95"); bg.addColorStop(1, "#0f172a");
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#c4b5fd"; g.font = "700 32px " + F; g.fillText("CUBING WRAPPED · " + yearLabel(y).toUpperCase(), 72, 100);
+  g.fillStyle = "#fff"; g.font = "800 80px " + F;
+  let nm = p.name; while (g.measureText(nm).width > W - 144 && nm.length > 4) nm = nm.slice(0, -2);
+  g.fillText(nm === p.name ? nm : nm + "…", 72, 215);
+  g.fillStyle = "#ddd6fe"; g.font = "400 32px " + F; g.fillText(p.id + " · " + p.country, 72, 268);
+  const tiles = summaryTiles(e);
+  tiles.forEach((t, k) => {
+    const x = 72 + (k % 2) * 480, yy = 330 + Math.floor(k / 2) * 250;
+    rrect(g, x, yy, 456, 226, 32, "rgba(255,255,255,0.14)");
+    g.fillStyle = "#fff"; g.font = "800 " + (t[0].length > 6 ? 56 : 96) + "px " + F; g.fillText(t[0], x + 32, yy + 120);
+    g.fillStyle = "#e9d5ff"; g.font = "600 32px " + F; g.fillText(t[1], x + 32, yy + 182);
+  });
+  const bi = bestImprovement(e);
+  if (bi) {
+    g.fillStyle = "#ddd6fe"; g.font = "700 28px " + F; g.fillText("BIGGEST IMPROVEMENT", 72, 1120);
+    g.fillStyle = "#fff"; g.font = "700 44px " + F;
+    g.fillText(META.names[bi.ev] + " " + bi.kind.toLowerCase() + ": " + fmtVal(bi.ev, bi.kind === "Average", bi.a0) + " → " + fmtVal(bi.ev, bi.kind === "Average", bi.a1), 72, 1182);
+  }
+  g.fillStyle = "#c4b5fd"; g.font = "400 28px " + F; g.fillText(location.host + location.pathname.replace(/index\.html$/, ""), 72, H - 52);
+  const blob = await new Promise(r => c.toBlob(r, "image/png"));
+  if (!blob) { flash(btn, "Couldn't make image"); return; }
+  const file = new File([blob], "cubing-wrapped-" + p.id + "-" + y + ".png", { type: "image/png" });
+  try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; } } catch (er) { if (er && er.name === "AbortError") return; }
+  const url = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = url; a.download = file.name; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000); flash(btn, "Image saved");
+}
+
+/* ---------- home ---------- */
+let homeYear = null, homeList = "comps";
+function renderHome() {
+  if (!homeYear || !META.years.includes(homeYear)) homeYear = META.cur;
+  const me = store("me");
+  const yseg = el("select", { class: "ysel", "aria-label": "Year", onchange: e => { homeYear = +e.target.value; renderHome(); } },
+    META.years.slice().reverse().map(y => el("option", { value: y, selected: y === homeYear ? "" : null }, yearLabel(y))));
+  const hero = el("div", { class: "card" },
+    el("p", { class: "sub", style: "margin-top:0" }, "Your year in speedcubing, built from the official WCA results export. Look up any WCA ID and pick a year, from " + META.years[0] + " to now."),
+    el("div", { class: "row" }, yseg),
+    searchBox(id => go("#" + id + "/" + homeYear)));
+  if (me) hero.append(el("div", { class: "row", style: "margin:12px 0 0" }, el("a", { class: "btn primary", href: "#" + me + "/" + homeYear }, "Open my Wrapped (" + me + ")")));
+  const top = META.top[String(homeYear)];
+  const lists = [["comps", "Most competitions"], ["prs", "Most PRs"], ["pod", "Most podiums"]];
+  const rows = top[homeList] || [];
+  const board = el("div", { class: "card" },
+    el("div", { class: "row" }, el("b", {}, "Leaders · " + yearLabel(homeYear)), el("div", { class: "seg" }, lists.map(([k, l]) => el("button", { "aria-pressed": homeList === k ? "true" : "false", onclick: () => { homeList = k; renderHome(); } }, l)))),
+    el("table", {}, el("tbody", {}, rows.map((r, i) => el("tr", { class: "go", onclick: () => go("#" + r[0] + "/" + homeYear) }, el("td", { class: "rk" }, i + 1), el("td", {}, r[1], " ", el("span", { class: "flag" }, r[2])), el("td", { class: "num" }, n0(r[3])))))));
+  app.replaceChildren(el("h1", {}, "Cubing Wrapped"), hero, board,
+    el("p", { class: "foot" }, "Unofficial fan-made tool, not affiliated with the World Cube Association. Built from the official WCA results export, updated daily (data as of " + META.asof + "). Vibe coded with Claude: double-check anything important against the WCA site. PRs count results that beat your previous best at an earlier competition. ",
+      el("a", { href: "https://eonicmystic.github.io/" }, "More cubing tools")));
+}
+
+/* ---------- routing ---------- */
+function go(h) { if (location.hash === h) route(); else location.hash = h; }
+function route() {
+  if (!META) return;
+  const h = location.hash.replace(/^#\/?/, "");
+  const m = /^(\d{4}[A-Za-z]{4}\d{2})(?:\/(\d{4}))?$/.exec(h);
+  window.scrollTo(0, 0);
+  if (m) return renderStory(m[1].toUpperCase(), m[2] ? +m[2] : (homeYear || META.cur));
+  renderHome();
+}
+window.addEventListener("hashchange", route);
+getRetry("meta.json", true).then(m => { META = m; route(); }).catch(() => { app.replaceChildren(el("div", { class: "err" }, "Couldn't load the data. Reload to try again.")); });
+</script>
+</body>
+</html>
